@@ -1,19 +1,40 @@
-import socket
+import tkinter as tk
+import requests
+import threading
 import time
 
-def get_connected_clients(server_host='127.0.0.1', server_port=12345):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-        client_socket.connect((server_host, server_port))
-        while True:
+class ClientApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Client Status")
+
+        # Erstelle und platziere das Label für die Anzahl der verbundenen Clients
+        self.label = tk.Label(root, text="Anzahl verbundener Clients: 0", font=("Helvetica", 16))
+        self.label.pack(pady=20)
+
+        # Starte den Hintergrund-Thread, der regelmäßig die Anzahl der Clients abfragt
+        self.running = True
+        self.update_thread = threading.Thread(target=self.update_client_count)
+        self.update_thread.start()
+
+    def update_client_count(self):
+        server_url = 'http://127.0.0.1:12345/clients'
+        while self.running:
             try:
-                # Anfrage an den Server, um die Anzahl der verbundenen Clients zu erhalten
-                client_socket.send(b'GET_COUNT')
-                response = client_socket.recv(1024).decode()
-                print(f"Anzahl verbundener Clients: {response}")
-                time.sleep(5)
-            except (ConnectionResetError, ConnectionRefusedError):
-                print("Verbindung zum Server unterbrochen.")
-                break
+                response = requests.get(server_url)
+                data = response.json()
+                count = data['connected_clients']
+                self.label.config(text=f"Anzahl verbundener Clients: {count}")
+            except requests.RequestException as e:
+                self.label.config(text="Fehler beim Abrufen der Client-Zahl")
+            time.sleep(5)
+
+    def on_closing(self):
+        self.running = False
+        self.root.destroy()
 
 if __name__ == "__main__":
-    get_connected_clients()
+    root = tk.Tk()
+    app = ClientApp(root)
+    root.protocol("WM_DELETE_WINDOW", app.on_closing)
+    root.mainloop()
